@@ -44,6 +44,35 @@ namespace Lidgren.Network
 			m_unsentUnconnectedMessages.Enqueue(new NetTuple<NetEndPoint, NetOutgoingMessage>(hostExternal, um));
 		}
 
+        /// <summary>
+        /// Introcude NAT
+        /// </summary>
+	    public void NatIntroduction(bool isHost, NetEndPoint remoteInternal, NetEndPoint remoteExternal, string token)
+	    {
+            NetOutgoingMessage punch;
+
+            if (!isHost && m_configuration.IsMessageTypeEnabled(NetIncomingMessageType.NatIntroductionSuccess) == false)
+                return; // no need to punch - we're not listening for nat intros!
+
+            // send internal punch
+            punch = CreateMessage(1);
+            punch.m_messageType = NetMessageType.NatPunchMessage;
+	        punch.Write(isHost ? (byte) 1 : (byte) 0);
+            punch.Write(token);
+            Interlocked.Increment(ref punch.m_recyclingCount);
+            m_unsentUnconnectedMessages.Enqueue(new NetTuple<NetEndPoint, NetOutgoingMessage>(remoteInternal, punch));
+            LogDebug("NAT punch sent to " + remoteInternal);
+
+            // send external punch
+            punch = CreateMessage(1);
+            punch.m_messageType = NetMessageType.NatPunchMessage;
+            punch.Write(isHost ? (byte)1 : (byte)0);
+            punch.Write(token);
+            Interlocked.Increment(ref punch.m_recyclingCount);
+            m_unsentUnconnectedMessages.Enqueue(new NetTuple<NetEndPoint, NetOutgoingMessage>(remoteExternal, punch));
+            LogDebug("NAT punch sent to " + remoteExternal);
+        }
+
 		/// <summary>
 		/// Called when host/client receives a NatIntroduction message from a master server
 		/// </summary>
@@ -62,29 +91,7 @@ namespace Lidgren.Network
 
 			LogDebug("NAT introduction received; we are designated " + (isHost ? "host" : "client"));
 
-			NetOutgoingMessage punch;
-
-			if (!isHost && m_configuration.IsMessageTypeEnabled(NetIncomingMessageType.NatIntroductionSuccess) == false)
-				return; // no need to punch - we're not listening for nat intros!
-
-			// send internal punch
-			punch = CreateMessage(1);
-			punch.m_messageType = NetMessageType.NatPunchMessage;
-			punch.Write(hostByte);
-			punch.Write(token);
-			Interlocked.Increment(ref punch.m_recyclingCount);
-			m_unsentUnconnectedMessages.Enqueue(new NetTuple<NetEndPoint, NetOutgoingMessage>(remoteInternal, punch));
-			LogDebug("NAT punch sent to " + remoteInternal);
-
-			// send external punch
-			punch = CreateMessage(1);
-			punch.m_messageType = NetMessageType.NatPunchMessage;
-			punch.Write(hostByte);
-			punch.Write(token);
-			Interlocked.Increment(ref punch.m_recyclingCount);
-			m_unsentUnconnectedMessages.Enqueue(new NetTuple<NetEndPoint, NetOutgoingMessage>(remoteExternal, punch));
-			LogDebug("NAT punch sent to " + remoteExternal);
-
+            NatIntroduction(isHost, remoteInternal, remoteExternal, token);
 		}
 
 		/// <summary>
