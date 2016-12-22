@@ -126,47 +126,84 @@ namespace Lidgren.Network
 			m_receivedFragmentGroups = new Dictionary<NetConnection, Dictionary<int, ReceivedFragmentGroup>>();	
 		}
 
-		/// <summary>
-		/// Binds to socket and spawns the networking thread
-		/// </summary>
+        public void InitializeSocket()
+        {
+            if (m_status != NetPeerStatus.NotRunning)
+            {
+                // already running! Just ignore...
+                LogWarning("Start() called on already running NetPeer - ignoring.");
+                return;
+            }
+
+            m_status = NetPeerStatus.Starting;
+
+            // fix network thread name
+            if (m_configuration.NetworkThreadName == "Lidgren network thread")
+            {
+                int pc = Interlocked.Increment(ref s_initializedPeersCount);
+                m_configuration.NetworkThreadName = "Lidgren network thread " + pc.ToString();
+            }
+
+            InitializeNetwork();
+        }
+
+        public void InitializeLoop()
+        {
+            // start network thread
+            m_networkThread = new Thread(new ThreadStart(NetworkLoop));
+            m_networkThread.Name = m_configuration.NetworkThreadName;
+            m_networkThread.IsBackground = true;
+            m_networkThread.Start();
+
+            // send upnp discovery
+            if (m_upnp != null)
+                m_upnp.Discover(this);
+
+            // allow some time for network thread to start up in case they call Connect() or UPnP calls immediately
+            NetUtility.Sleep(50);
+        }
+
+        /// <summary>
+        /// Binds to socket and spawns the networking thread
+        /// </summary>
 		public void Start()
-		{
-			if (m_status != NetPeerStatus.NotRunning)
-			{
-				// already running! Just ignore...
-				LogWarning("Start() called on already running NetPeer - ignoring.");
-				return;
-			}
+        {
+            if (m_status != NetPeerStatus.NotRunning)
+            {
+                // already running! Just ignore...
+                LogWarning("Start() called on already running NetPeer - ignoring.");
+                return;
+            }
 
-			m_status = NetPeerStatus.Starting;
+            m_status = NetPeerStatus.Starting;
 
-			// fix network thread name
-			if (m_configuration.NetworkThreadName == "Lidgren network thread")
-			{
-				int pc = Interlocked.Increment(ref s_initializedPeersCount);
-				m_configuration.NetworkThreadName = "Lidgren network thread " + pc.ToString();
-			}
+            // fix network thread name
+            if (m_configuration.NetworkThreadName == "Lidgren network thread")
+            {
+                int pc = Interlocked.Increment(ref s_initializedPeersCount);
+                m_configuration.NetworkThreadName = "Lidgren network thread " + pc.ToString();
+            }
 
-			InitializeNetwork();
-			
-			// start network thread
-			m_networkThread = new Thread(new ThreadStart(NetworkLoop));
-			m_networkThread.Name = m_configuration.NetworkThreadName;
-			m_networkThread.IsBackground = true;
-			m_networkThread.Start();
+            InitializeNetwork();
 
-			// send upnp discovery
-			if (m_upnp != null)
-				m_upnp.Discover(this);
+            // start network thread
+            m_networkThread = new Thread(new ThreadStart(NetworkLoop));
+            m_networkThread.Name = m_configuration.NetworkThreadName;
+            m_networkThread.IsBackground = true;
+            m_networkThread.Start();
 
-			// allow some time for network thread to start up in case they call Connect() or UPnP calls immediately
-			NetUtility.Sleep(50);
-		}
+            // send upnp discovery
+            if (m_upnp != null)
+                m_upnp.Discover(this);
 
-		/// <summary>
-		/// Get the connection, if any, for a certain remote endpoint
-		/// </summary>
-		public NetConnection GetConnection(NetEndPoint ep)
+            // allow some time for network thread to start up in case they call Connect() or UPnP calls immediately
+            NetUtility.Sleep(50);
+        }
+
+        /// <summary>
+        /// Get the connection, if any, for a certain remote endpoint
+        /// </summary>
+        public NetConnection GetConnection(NetEndPoint ep)
 		{
 			NetConnection retval;
 
