@@ -60,10 +60,20 @@ namespace Lidgren.Network
 			m_receiveCallbacks.Add(new NetTuple<SynchronizationContext, SendOrPostCallback>(syncContext, callback));
 		}
 
-		/// <summary>
-		/// Call this to unregister a callback, but remember to do it in the same synchronization context!
-		/// </summary>
-		public void UnregisterReceivedCallback(SendOrPostCallback callback)
+        /// <summary>
+        /// Call this to register a callback for when a new message arrives and the callback should be executed in a new thread
+        /// </summary>
+        public void RegisterReceivedCallbackThreaded(SendOrPostCallback callback)
+        {
+            if (m_receiveCallbacks == null)
+                m_receiveCallbacks = new List<NetTuple<SynchronizationContext, SendOrPostCallback>>();
+            m_receiveCallbacks.Add(new NetTuple<SynchronizationContext, SendOrPostCallback>(null, callback));
+        }
+
+        /// <summary>
+        /// Call this to unregister a callback, but remember to do it in the same synchronization context!
+        /// </summary>
+        public void UnregisterReceivedCallback(SendOrPostCallback callback)
 		{
 			if (m_receiveCallbacks == null)
 				return;
@@ -96,7 +106,10 @@ namespace Lidgren.Network
 				{
 					try
 					{
-						tuple.Item1.Post(tuple.Item2, this);
+					    if (tuple.Item1 == null)
+					        new Thread(() => tuple.Item2.Invoke(null)).Start();
+					    else
+					        tuple.Item1.Post(tuple.Item2, this);
 					}
 					catch (Exception ex)
 					{
